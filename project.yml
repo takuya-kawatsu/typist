@@ -1,0 +1,46 @@
+name: Typist
+options:
+  bundleIdPrefix: com.takuya
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "16.0"
+  minimumXcodeGenVersion: "2.38.0"
+packages:
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm
+    from: "2.29.1"
+settings:
+  SWIFT_VERSION: "5"
+  MACOSX_DEPLOYMENT_TARGET: "15.0"
+targets:
+  Typist:
+    type: application
+    platform: macOS
+    sources:
+      - path: Typist
+        excludes:
+          - Resources/Info.plist
+          - Resources/Typist.entitlements
+    info:
+      path: Typist/Resources/Info.plist
+      properties:
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSUIElement: true
+        NSMicrophoneUsageDescription: "Typist needs microphone access for speech recognition."
+        NSSpeechRecognitionUsageDescription: "Typist uses speech recognition to convert your speech to text."
+    entitlements:
+      path: Typist/Resources/Typist.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.device.audio-input: true
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.takuya.Typist
+      INFOPLIST_FILE: Typist/Resources/Info.plist
+      CODE_SIGN_ENTITLEMENTS: Typist/Resources/Typist.entitlements
+      ENABLE_HARDENED_RUNTIME: true
+      SWIFT_STRICT_CONCURRENCY: targeted
+    dependencies:
+      - package: mlx-swift-lm
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
