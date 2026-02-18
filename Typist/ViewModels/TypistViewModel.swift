@@ -16,13 +16,27 @@ final class TypistViewModel: ObservableObject {
 
     private var appState: AppState?
     private var sttService = SpeechRecognitionService()
+    private var permissionCancellable: AnyCancellable?
     private var holdingCancellable: AnyCancellable?
     private var partialResultCancellable: AnyCancellable?
     private var dismissTask: Task<Void, Never>?
     private var overlayPanel: OverlayPanel?
 
-    func setup(appState: AppState) {
+    /// Bind to AppState — starts key monitoring as soon as permissions are granted.
+    func bind(appState: AppState) {
+        guard self.appState == nil else { return }
         self.appState = appState
+
+        permissionCancellable = appState.$isPermissionGranted
+            .filter { $0 }
+            .first()
+            .sink { [weak self] _ in
+                self?.startKeyMonitoring()
+            }
+    }
+
+    private func startKeyMonitoring() {
+        guard let appState else { return }
 
         appState.keyMonitor.startMonitoring()
 

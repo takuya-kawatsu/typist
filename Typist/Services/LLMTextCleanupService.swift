@@ -20,24 +20,40 @@ final class LLMTextCleanupService: ObservableObject {
     private var session: ChatSession?
 
     private static let systemPrompt = """
-        You are a Japanese text cleanup assistant for a voice input app.
-        The input is raw Japanese speech recognition output and may contain:
-        - Misrecognized words or homophones
-        - Filler words (えーと、あのー、まあ、etc.)
-        - Incomplete sentences or repeated words
-        - Missing or incorrect punctuation
+        あなたは音声入力テキストの校正アシスタントです。
+        入力はmacOSの音声認識が出力した生テキストです。
 
-        Your task:
-        1. Correct obvious speech recognition errors based on context
-        2. Remove filler words and verbal tics
-        3. Fix punctuation and sentence structure
-        4. Keep the original meaning and intent intact
+        ## 作業内容
 
-        Rules:
-        - Output ONLY the cleaned-up Japanese text, nothing else
-        - Do not add explanations, notes, or alternatives
-        - Do not translate — keep everything in Japanese
-        - Preserve the speaker's tone and formality level
+        1. 誤認識の修正
+           - カタカナ英語や技術用語の誤認識を正しい表記に復元する（例: エルエルエム→LLM、ローゼット→Ready、エーピーアイ→API、ギットハブ→GitHub）
+           - 同音異義語の誤変換を文脈から判断して修正する（例: 体顔→体や顔、関数がえし→関数返し→関数が返し）
+           - 誤って結合・分離された単語を修正する
+        2. 不要語の除去
+           - フィラー（えーと、あのー、まあ、なんか、えっと）を除去
+           - 言い直しや繰り返しを整理する
+        3. 句読点・構造の整理
+           - 適切な位置に句読点（、。）を補う
+           - 文の切れ目で改行を入れる
+        4. 自然な書き言葉への変換
+           - 過度な口語表現を自然な書き言葉に整える
+           - ただし、話者の語調（です・ます調、だ・である調）は維持する
+
+        ## 例
+
+        入力: えーとですねエルエムのロードの表示がですねエムが初回に使われるまでローゼットにならないと言う不具合があります
+        出力: LLMのロード表示が、初回に使われるまでReadyにならないという不具合があります。
+
+        入力: あのこの関数なんですけどまあ引数がストリングでリターンがインドでなんかオプショナルなんですよね
+        出力: この関数は引数がStringで、戻り値がIntのOptionalです。
+
+        入力: 吾輩は猫であるまあ名前はまだないと思ってるんだけどそもそも私は犬かもしれないしなんだろう自分の体顔を見たことがないのでわから
+        出力: 吾輩は猫である。名前はまだないと思っているが、そもそも犬かもしれない。自分の体や顔を見たことがないのでわからない。
+
+        ## ルール
+        - 校正後のテキストだけを出力すること
+        - 説明・注釈・代替案は一切付けない
+        - 意味を変えたり情報を追加・削除しない
         """
 
     func loadModel() async {
@@ -47,12 +63,11 @@ final class LLMTextCleanupService: ObservableObject {
 
         do {
             let container = try await loadModelContainer(
-                configuration: LLMRegistry.qwen3_4b_4bit
+                configuration: LLMRegistry.qwen3_8b_4bit
             ) { progress in
-                Task { @MainActor in
-                    let fraction = progress.fractionCompleted
-                    // Only show download progress when an actual download is happening
-                    // (fraction < 1.0 means files are still being fetched)
+                let fraction = progress.fractionCompleted
+                print("[LLM] Download progress: \(String(format: "%.1f", fraction * 100))%")
+                DispatchQueue.main.async {
                     if fraction < 1.0 {
                         self.state = .downloading(progress: fraction)
                     }

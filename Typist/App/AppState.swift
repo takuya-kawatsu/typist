@@ -12,12 +12,18 @@ final class AppState: ObservableObject {
     let keyMonitor = KeyMonitor()
     let llmService = LLMTextCleanupService()
     let textInsertion = TextInsertionService()
+    private let modelProgress = ModelProgressPanel()
 
-    func startLoadingLLM() {
+    func bootstrap() {
+        // LLM download/load — no permissions needed, start immediately
+        modelProgress.observe(llmService)
         Task { await llmService.loadModel() }
+
+        // Permissions — runs in parallel with LLM loading
+        Task { await requestPermissions() }
     }
 
-    func requestPermissions() async {
+    private func requestPermissions() async {
         // Request speech recognition permission
         let speechStatus = await SpeechRecognitionService.requestAuthorization()
         guard speechStatus == .authorized else {

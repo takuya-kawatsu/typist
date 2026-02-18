@@ -12,6 +12,12 @@ struct TypistApp: App {
                 .environmentObject(viewModel)
         } label: {
             Image(systemName: menuBarIcon)
+                .onAppear {
+                    // Runs once when the menu bar icon first appears (app launch).
+                    // LLM loading and permission requests start in parallel.
+                    viewModel.bind(appState: appState)
+                    appState.bootstrap()
+                }
         }
     }
 
@@ -28,6 +34,8 @@ struct TypistApp: App {
         }
     }
 }
+
+// MARK: - Menu Content
 
 struct MenuBarContent: View {
     @EnvironmentObject var appState: AppState
@@ -75,12 +83,5 @@ struct MenuBarContent: View {
             .keyboardShortcut("q")
         }
         .padding(4)
-        .task {
-            await appState.requestPermissions()
-            if appState.isPermissionGranted {
-                appState.startLoadingLLM()
-                viewModel.setup(appState: appState)
-            }
-        }
     }
 }

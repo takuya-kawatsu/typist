@@ -1,5 +1,4 @@
 import Cocoa
-import ApplicationServices
 
 @MainActor
 final class TextInsertionService {
@@ -30,72 +29,6 @@ final class TextInsertionService {
         // No accessibility — just copy to clipboard (CGEvent won't work either)
         print("[Insert] No accessibility, copying to clipboard only")
         copyToClipboard(text)
-    }
-
-    // MARK: - AXUIElement insertion
-
-    private func insertViaAccessibility(_ text: String) -> Bool {
-        guard let frontApp = NSWorkspace.shared.frontmostApplication else {
-            print("[Insert] No frontmost application")
-            return false
-        }
-
-        print("[Insert] Frontmost app: \(frontApp.localizedName ?? "?") (pid=\(frontApp.processIdentifier))")
-
-        let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
-        guard let focusedElement = getFocusedElement(from: appElement) else {
-            print("[Insert] No focused element found")
-            return false
-        }
-
-        // Try to insert at selection range first
-        if insertAtSelection(element: focusedElement, text: text) {
-            print("[Insert] insertAtSelection succeeded")
-            return true
-        }
-        print("[Insert] insertAtSelection failed")
-
-        // Fallback: set the entire value (append)
-        if appendToValue(element: focusedElement, text: text) {
-            print("[Insert] appendToValue succeeded")
-            return true
-        }
-        print("[Insert] appendToValue failed")
-
-        return false
-    }
-
-    private func getFocusedElement(from appElement: AXUIElement) -> AXUIElement? {
-        var focusedElement: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
-        guard result == .success else { return nil }
-        return (focusedElement as! AXUIElement)
-    }
-
-    private func insertAtSelection(element: AXUIElement, text: String) -> Bool {
-        // Get current selected text range
-        var selectedRangeValue: CFTypeRef?
-        let rangeResult = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &selectedRangeValue)
-        guard rangeResult == .success else { return false }
-
-        // Set selected text (replaces selection, or inserts at cursor if selection is empty)
-        let setResult = AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFTypeRef)
-        return setResult == .success
-    }
-
-    private func appendToValue(element: AXUIElement, text: String) -> Bool {
-        var currentValue: CFTypeRef?
-        let getResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &currentValue)
-
-        let newValue: String
-        if getResult == .success, let current = currentValue as? String {
-            newValue = current + text
-        } else {
-            newValue = text
-        }
-
-        let setResult = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, newValue as CFTypeRef)
-        return setResult == .success
     }
 
     // MARK: - Clipboard
