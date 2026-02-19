@@ -11,13 +11,38 @@ enum LLMModelState: Equatable {
     case error(String)
 }
 
+struct LLMModelOption: Identifiable, Hashable {
+    let id: String
+    let label: String
+    let configuration: ModelConfiguration
+
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    static func == (lhs: LLMModelOption, rhs: LLMModelOption) -> Bool { lhs.id == rhs.id }
+
+    static let available: [LLMModelOption] = [
+        LLMModelOption(id: "qwen3-0.6b", label: "Qwen3-0.6B", configuration: LLMRegistry.qwen3_0_6b_4bit),
+        LLMModelOption(id: "qwen3-1.7b", label: "Qwen3-1.7B", configuration: LLMRegistry.qwen3_1_7b_4bit),
+        LLMModelOption(id: "qwen3-4b",   label: "Qwen3-4B",   configuration: LLMRegistry.qwen3_4b_4bit),
+        LLMModelOption(id: "qwen3-8b",   label: "Qwen3-8B",   configuration: LLMRegistry.qwen3_8b_4bit),
+    ]
+
+    static let defaultOption = available.last!
+
+    static func find(byId id: String) -> LLMModelOption {
+        available.first { $0.id == id } ?? defaultOption
+    }
+}
+
 @MainActor
 final class LLMTextCleanupService: ObservableObject {
     @Published var state: LLMModelState = .idle
+    @Published private(set) var currentModelId: String
 
     var isReady: Bool { state == .ready }
 
     private var session: ChatSession?
+
+    private static let userDefaultsKey = "selectedLLMModelId"
 
     private static let systemPrompt = """
         あなたは音声認識テキストの軽微な校正アシスタントです。
@@ -41,14 +66,31 @@ final class LLMTextCleanupService: ObservableObject {
         - 修正箇所がなければ入力をそのまま出力する
         """
 
+    init() {
+        let savedId = UserDefaults.standard.string(forKey: Self.userDefaultsKey)
+        self.currentModelId = savedId ?? LLMModelOption.defaultOption.id
+    }
+
     func loadModel() async {
         guard state == .idle || state.isError else { return }
+        await loadConfiguration(LLMModelOption.find(byId: currentModelId).configuration)
+    }
 
+    func switchModel(to option: LLMModelOption) async {
+        guard option.id != currentModelId || state != .ready else { return }
+        currentModelId = option.id
+        UserDefaults.standard.set(option.id, forKey: Self.userDefaultsKey)
+        session = nil
+        state = .idle
+        await loadConfiguration(option.configuration)
+    }
+
+    private func loadConfiguration(_ configuration: ModelConfiguration) async {
         state = .loading
 
         do {
             let container = try await loadModelContainer(
-                configuration: LLMRegistry.qwen3_8b_4bit
+                configuration: configuration
             ) { [weak self] progress in
                 let fraction = progress.fractionCompleted
                 print("[LLM] Download progress: \(String(format: "%.1f", fraction * 100))%")
@@ -59,7 +101,7 @@ final class LLMTextCleanupService: ObservableObject {
             }
 
             state = .loading
-            print("[LLM] Creating ChatSession...")
+            print("[LLM] Creating ChatSession for \(configuration.name)...")
 
             session = ChatSession(
                 container,
@@ -71,6 +113,7 @@ final class LLMTextCleanupService: ObservableObject {
             )
 
             state = .ready
+            print("[LLM] Model ready: \(configuration.name)")
         } catch {
             state = .error(error.localizedDescription)
         }

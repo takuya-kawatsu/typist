@@ -95,17 +95,34 @@ struct MenuBarContent: View {
 
     @ViewBuilder
     private var llmStatusView: some View {
+        let currentLabel = LLMModelOption.find(byId: appState.llmService.currentModelId).label
+
         switch appState.llmService.state {
         case .idle:
             Label("LLM: Not loaded", systemImage: "circle")
         case .downloading(let progress):
-            Label("LLM: Downloading \(Int(progress * 100))%", systemImage: "arrow.down.circle")
+            Label("LLM: Downloading \(currentLabel) \(Int(progress * 100))%", systemImage: "arrow.down.circle")
         case .loading:
-            Label("LLM: Loading...", systemImage: "hourglass")
+            Label("LLM: Loading \(currentLabel)...", systemImage: "hourglass")
         case .ready:
-            Label("LLM: Ready", systemImage: "checkmark.circle.fill")
+            Label("LLM: \(currentLabel) Ready", systemImage: "checkmark.circle.fill")
         case .error(let msg):
             Label("LLM: Error - \(msg)", systemImage: "exclamation.triangle")
+        }
+
+        Menu("Model: \(currentLabel)") {
+            ForEach(LLMModelOption.available) { option in
+                Button {
+                    Task { await appState.llmService.switchModel(to: option) }
+                } label: {
+                    if option.id == appState.llmService.currentModelId {
+                        Text("\(option.label) \u{2714}")
+                    } else {
+                        Text(option.label)
+                    }
+                }
+                .disabled(option.id == appState.llmService.currentModelId && appState.llmService.state == .ready)
+            }
         }
     }
 }
