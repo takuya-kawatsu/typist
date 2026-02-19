@@ -9,6 +9,8 @@ packages:
   mlx-swift-lm:
     url: https://github.com/ml-explore/mlx-swift-lm
     from: "2.29.1"
+  whisper-spm:
+    path: packages/whisper.spm
 settings:
   SWIFT_VERSION: "5"
   MACOSX_DEPLOYMENT_TARGET: "15.0"
@@ -27,7 +29,7 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         LSUIElement: true
         NSMicrophoneUsageDescription: "Typist needs microphone access for speech recognition."
-        NSSpeechRecognitionUsageDescription: "Typist uses speech recognition to convert your speech to text."
+        NSDownloadsFolderUsageDescription: "Typist downloads AI models for speech recognition."
     entitlements:
       path: Typist/Resources/Typist.entitlements
       properties:
@@ -39,8 +41,11 @@ targets:
       CODE_SIGN_ENTITLEMENTS: Typist/Resources/Typist.entitlements
       ENABLE_HARDENED_RUNTIME: true
       SWIFT_STRICT_CONCURRENCY: targeted
+      MTL_HEADER_SEARCH_PATHS: "$(SRCROOT)/packages/whisper.spm/Sources/whisper"
     dependencies:
       - package: mlx-swift-lm
         product: MLXLLM
       - package: mlx-swift-lm
         product: MLXLMCommon
+      - package: whisper-spm
+        product: whisper

@@ -1,5 +1,4 @@
 import SwiftUI
-import Speech
 import AVFoundation
 
 @MainActor
@@ -8,30 +7,25 @@ final class AppState: ObservableObject {
     @Published var permissionError: String?
 
     let coordinator = AudioSessionCoordinator()
-    let sttService = SpeechRecognitionService()
     let keyMonitor = KeyMonitor()
     let llmService = LLMTextCleanupService()
     let textInsertion = TextInsertionService()
+    let whisperModelManager = WhisperModelManager()
+    private(set) lazy var whisperService = WhisperService(modelManager: whisperModelManager)
     private let modelProgress = ModelProgressPanel()
 
     func bootstrap() {
-        // LLM download/load — no permissions needed, start immediately
-        modelProgress.observe(llmService)
+        // LLM and Whisper model loading — start in parallel
+        modelProgress.observe(whisperModelManager: whisperModelManager, llmService: llmService)
         Task { await llmService.loadModel() }
+        Task { await whisperService.loadModel() }
 
-        // Permissions — runs in parallel with LLM loading
+        // Permissions — runs in parallel with model loading
         Task { await requestPermissions() }
     }
 
     private func requestPermissions() async {
-        // Request speech recognition permission
-        let speechStatus = await SpeechRecognitionService.requestAuthorization()
-        guard speechStatus == .authorized else {
-            permissionError = "Speech recognition permission denied."
-            return
-        }
-
-        // Request microphone permission
+        // Request microphone permission (still needed for audio capture)
         let micGranted: Bool
         if #available(macOS 14.0, *) {
             micGranted = await AVAudioApplication.requestRecordPermission()

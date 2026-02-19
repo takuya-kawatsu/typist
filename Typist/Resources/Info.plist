@@ -22,9 +22,9 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Typist downloads AI models for speech recognition.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Typist needs microphone access for speech recognition.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Typist uses speech recognition to convert your speech to text.</string>
 </dict>
 </plist>

@@ -15,7 +15,6 @@ final class TypistViewModel: ObservableObject {
     @Published var cleanedText: String = ""
 
     private var appState: AppState?
-    private var sttService = SpeechRecognitionService()
     private var permissionCancellable: AnyCancellable?
     private var holdingCancellable: AnyCancellable?
     private var partialResultCancellable: AnyCancellable?
@@ -56,6 +55,10 @@ final class TypistViewModel: ObservableObject {
 
     private func startRecording() {
         guard let appState, state == .idle || state == .done else { return }
+        guard appState.whisperService.isModelLoaded else {
+            print("[Typist] Whisper model not loaded yet")
+            return
+        }
 
         dismissTask?.cancel()
         dismissTask = nil
@@ -64,19 +67,7 @@ final class TypistViewModel: ObservableObject {
         recognizedText = ""
         cleanedText = ""
 
-        appState.coordinator.transitionTo(.listening)
-
-        sttService.onRestartLimitReached = { [weak self] in
-            guard let self else { return }
-            if !self.recognizedText.isEmpty {
-                self.stopRecordingAndProcess()
-            } else {
-                self.state = .idle
-                self.hideOverlay()
-            }
-        }
-
-        partialResultCancellable = sttService.$partialResult
+        partialResultCancellable = appState.whisperService.$partialResult
             .receive(on: RunLoop.main)
             .sink { [weak self] text in
                 guard let self else { return }
@@ -86,44 +77,34 @@ final class TypistViewModel: ObservableObject {
                 }
             }
 
-        sttService.startRecognition(
-            locale: Locale(identifier: "ja-JP"),
-            coordinator: appState.coordinator,
-            autoRestart: true,
-            accumulateText: true
-        )
-
+        appState.whisperService.startRecording(coordinator: appState.coordinator)
         showOverlay()
     }
 
     private func stopRecordingAndProcess() {
         guard let appState else { return }
 
-        // Read accumulated text before stopping
-        let recognized = sttService.partialResult.isEmpty
-            ? recognizedText
-            : sttService.partialResult
         partialResultCancellable?.cancel()
         partialResultCancellable = nil
-        sttService.stopRecognition()
-        sttService.onRestartLimitReached = nil
 
-        appState.coordinator.transitionTo(.idle)
-
-        print("[Typist] Recognized: '\(recognized)'")
-
-        guard !recognized.isEmpty else {
-            print("[Typist] No text recognized, returning to idle")
-            state = .idle
-            hideOverlay()
-            return
-        }
-
-        recognizedText = recognized
         state = .processing
         updateOverlay()
 
         Task {
+            let recognized = await appState.whisperService.stopRecording()
+
+            print("[Typist] Recognized: '\(recognized)'")
+
+            guard !recognized.isEmpty else {
+                print("[Typist] No text recognized, returning to idle")
+                state = .idle
+                hideOverlay()
+                return
+            }
+
+            recognizedText = recognized
+            updateOverlay()
+
             let finalText: String
             if appState.llmService.isReady {
                 do {

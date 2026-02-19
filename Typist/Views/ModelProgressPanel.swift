@@ -5,35 +5,64 @@ import Combine
 @MainActor
 final class ModelProgressPanel {
     private var panel: NSPanel?
-    private var observation: AnyCancellable?
+    private var observations: Set<AnyCancellable> = []
 
     private let panelWidth: CGFloat = 340
-    private let panelHeight: CGFloat = 100
+    private let panelHeight: CGFloat = 120
 
-    func observe(_ llmService: LLMTextCleanupService) {
-        observation = llmService.$state
-            .sink { [weak self] state in
-                print("[ModelProgress] State: \(state)")
-                switch state {
-                case .downloading(let progress):
-                    self?.show(phase: .downloading(progress))
-                case .loading:
-                    self?.show(phase: .loading)
-                case .ready, .error:
-                    self?.hide()
-                case .idle:
-                    break
-                }
+    func observe(whisperModelManager: WhisperModelManager, llmService: LLMTextCleanupService) {
+        observations.removeAll()
+
+        whisperModelManager.$state
+            .combineLatest(llmService.$state)
+            .sink { [weak self] whisperState, llmState in
+                self?.update(whisperState: whisperState, llmState: llmState)
             }
+            .store(in: &observations)
     }
 
-    private func show(phase: ModelProgressPhase) {
+    private func update(whisperState: WhisperModelState, llmState: LLMModelState) {
+        let whisperPhase = phase(from: whisperState, label: "Whisper")
+        let llmPhase = phase(from: llmState, label: "LLM")
+
+        let activePhases = [whisperPhase, llmPhase].compactMap { $0 }
+
+        if activePhases.isEmpty {
+            hide()
+        } else {
+            show(phases: activePhases)
+        }
+    }
+
+    private func phase(from whisperState: WhisperModelState, label: String) -> ModelProgressPhase? {
+        switch whisperState {
+        case .downloading(let progress):
+            return .downloading(label: label, progress: progress)
+        case .loading:
+            return .loading(label: label)
+        case .idle, .ready, .error:
+            return nil
+        }
+    }
+
+    private func phase(from llmState: LLMModelState, label: String) -> ModelProgressPhase? {
+        switch llmState {
+        case .downloading(let progress):
+            return .downloading(label: label, progress: progress)
+        case .loading:
+            return .loading(label: label)
+        case .idle, .ready, .error:
+            return nil
+        }
+    }
+
+    private func show(phases: [ModelProgressPhase]) {
         if panel == nil {
             createPanel()
         }
         guard let panel else { return }
 
-        let hostingView = NSHostingView(rootView: ModelProgressContent(phase: phase))
+        let hostingView = NSHostingView(rootView: ModelProgressContent(phases: phases))
         hostingView.frame = panel.contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
         panel.contentView?.subviews.forEach { $0.removeFromSuperview() }
@@ -78,53 +107,64 @@ final class ModelProgressPanel {
 
 // MARK: - Phase
 
-enum ModelProgressPhase {
-    case downloading(Double)
-    case loading
+enum ModelProgressPhase: Identifiable {
+    case downloading(label: String, progress: Double)
+    case loading(label: String)
+
+    var id: String { label }
+
+    var label: String {
+        switch self {
+        case .downloading(let label, _): return label
+        case .loading(let label): return label
+        }
+    }
 }
 
 // MARK: - SwiftUI Content
 
 private struct ModelProgressContent: View {
-    let phase: ModelProgressPhase
+    let phases: [ModelProgressPhase]
 
     var body: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: iconName)
-                    .foregroundStyle(.secondary)
-                Text(title)
-                    .font(.headline)
-            }
-
-            switch phase {
-            case .downloading(let progress):
-                ProgressView(value: progress) {
-                    Text("\(Int(progress * 100))%")
-                        .font(.caption)
+            ForEach(phases) { phase in
+                HStack(spacing: 8) {
+                    Image(systemName: iconName(for: phase))
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    Text(title(for: phase))
+                        .font(.headline)
                 }
-            case .loading:
-                ProgressView()
-                    .controlSize(.small)
+
+                switch phase {
+                case .downloading(_, let progress):
+                    ProgressView(value: progress) {
+                        Text("\(Int(progress * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                case .loading:
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
         }
         .padding(20)
         .frame(maxWidth: .infinity)
     }
 
-    private var iconName: String {
+    private func iconName(for phase: ModelProgressPhase) -> String {
         switch phase {
         case .downloading: return "arrow.down.circle"
         case .loading: return "cpu"
         }
     }
 
-    private var title: String {
+    private func title(for phase: ModelProgressPhase) -> String {
         switch phase {
-        case .downloading: return "モデルをダウンロード中..."
-        case .loading: return "モデルを読み込み中..."
+        case .downloading(let label, _): return "\(label)モデルをダウンロード中..."
+        case .loading(let label): return "\(label)モデルを読み込み中..."
         }
     }
 }

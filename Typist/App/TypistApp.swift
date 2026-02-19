@@ -14,7 +14,7 @@ struct TypistApp: App {
             Image(systemName: menuBarIcon)
                 .onAppear {
                     // Runs once when the menu bar icon first appears (app launch).
-                    // LLM loading and permission requests start in parallel.
+                    // LLM + Whisper loading and permission requests start in parallel.
                     viewModel.bind(appState: appState)
                     appState.bootstrap()
                 }
@@ -43,19 +43,11 @@ struct MenuBarContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            // Whisper STT Status
+            whisperStatusView
+
             // LLM Status
-            switch appState.llmService.state {
-            case .idle:
-                Label("LLM: Not loaded", systemImage: "circle")
-            case .downloading(let progress):
-                Label("LLM: Downloading \(Int(progress * 100))%", systemImage: "arrow.down.circle")
-            case .loading:
-                Label("LLM: Loading...", systemImage: "hourglass")
-            case .ready:
-                Label("LLM: Ready", systemImage: "checkmark.circle.fill")
-            case .error(let msg):
-                Label("LLM: Error - \(msg)", systemImage: "exclamation.triangle")
-            }
+            llmStatusView
 
             Divider()
 
@@ -83,5 +75,37 @@ struct MenuBarContent: View {
             .keyboardShortcut("q")
         }
         .padding(4)
+    }
+
+    @ViewBuilder
+    private var whisperStatusView: some View {
+        switch appState.whisperModelManager.state {
+        case .idle:
+            Label("Whisper: Not loaded", systemImage: "circle")
+        case .downloading(let progress):
+            Label("Whisper: Downloading \(Int(progress * 100))%", systemImage: "arrow.down.circle")
+        case .loading:
+            Label("Whisper: Loading...", systemImage: "hourglass")
+        case .ready:
+            Label("Whisper: Ready", systemImage: "checkmark.circle.fill")
+        case .error(let msg):
+            Label("Whisper: Error - \(msg)", systemImage: "exclamation.triangle")
+        }
+    }
+
+    @ViewBuilder
+    private var llmStatusView: some View {
+        switch appState.llmService.state {
+        case .idle:
+            Label("LLM: Not loaded", systemImage: "circle")
+        case .downloading(let progress):
+            Label("LLM: Downloading \(Int(progress * 100))%", systemImage: "arrow.down.circle")
+        case .loading:
+            Label("LLM: Loading...", systemImage: "hourglass")
+        case .ready:
+            Label("LLM: Ready", systemImage: "checkmark.circle.fill")
+        case .error(let msg):
+            Label("LLM: Error - \(msg)", systemImage: "exclamation.triangle")
+        }
     }
 }
