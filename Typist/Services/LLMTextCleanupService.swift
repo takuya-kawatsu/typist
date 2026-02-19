@@ -95,8 +95,13 @@ final class LLMTextCleanupService: ObservableObject {
                 let fraction = progress.fractionCompleted
                 print("[LLM] Download progress: \(String(format: "%.1f", fraction * 100))%")
                 Task { @MainActor in
-                    guard let self, case .loading = self.state, fraction < 1.0 else { return }
-                    self.state = .downloading(progress: fraction)
+                    guard let self, fraction < 1.0 else { return }
+                    switch self.state {
+                    case .loading, .downloading:
+                        self.state = .downloading(progress: fraction)
+                    default:
+                        break
+                    }
                 }
             }
 
