@@ -11,8 +11,12 @@ final class AppState: ObservableObject {
     let llmService = LLMTextCleanupService()
     let textInsertion = TextInsertionService()
     let whisperModelManager = WhisperModelManager()
-    private(set) lazy var whisperService = WhisperService(modelManager: whisperModelManager)
+    let whisperService: WhisperService
     private let modelProgress = ModelProgressPanel()
+
+    init() {
+        self.whisperService = WhisperService(modelManager: whisperModelManager)
+    }
 
     func bootstrap() {
         // LLM and Whisper model loading — start in parallel

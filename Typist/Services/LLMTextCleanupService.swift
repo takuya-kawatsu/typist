@@ -49,17 +49,17 @@ final class LLMTextCleanupService: ObservableObject {
         do {
             let container = try await loadModelContainer(
                 configuration: LLMRegistry.qwen3_8b_4bit
-            ) { progress in
+            ) { [weak self] progress in
                 let fraction = progress.fractionCompleted
                 print("[LLM] Download progress: \(String(format: "%.1f", fraction * 100))%")
-                DispatchQueue.main.async {
-                    if fraction < 1.0 {
-                        self.state = .downloading(progress: fraction)
-                    }
+                Task { @MainActor in
+                    guard let self, case .loading = self.state, fraction < 1.0 else { return }
+                    self.state = .downloading(progress: fraction)
                 }
             }
 
             state = .loading
+            print("[LLM] Creating ChatSession...")
 
             session = ChatSession(
                 container,
