@@ -1,9 +1,8 @@
 import Cocoa
-import Combine
 
-@MainActor
-final class KeyMonitor: ObservableObject {
-    @Published var isHolding = false
+@Observable @MainActor
+final class KeyMonitor {
+    var isHolding = false
 
     private var localMonitor: Any?
     private var globalMonitor: Any?

@@ -1,14 +1,13 @@
 import AVFoundation
-import Combine
 
 enum AudioState: Sendable {
     case idle
     case listening
 }
 
-@MainActor
-final class AudioSessionCoordinator: ObservableObject {
-    @Published private(set) var state: AudioState = .idle
+@Observable @MainActor
+final class AudioSessionCoordinator {
+    private(set) var state: AudioState = .idle
 
     let audioEngine = AVAudioEngine()
     private var currentTapInstalled = false

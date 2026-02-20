@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 enum TypistState {
     case idle
@@ -8,16 +7,16 @@ enum TypistState {
     case done
 }
 
-@MainActor
-final class TypistViewModel: ObservableObject {
-    @Published var state: TypistState = .idle
-    @Published var recognizedText: String = ""
-    @Published var cleanedText: String = ""
+@Observable @MainActor
+final class TypistViewModel {
+    var state: TypistState = .idle
+    var recognizedText: String = ""
+    var cleanedText: String = ""
 
     private var appState: AppState?
-    private var permissionCancellable: AnyCancellable?
-    private var holdingCancellable: AnyCancellable?
-    private var partialResultCancellable: AnyCancellable?
+    private var permissionTask: Task<Void, Never>?
+    private var holdingTask: Task<Void, Never>?
+    private var partialResultTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
     private var overlayPanel: OverlayPanel?
 
@@ -26,12 +25,24 @@ final class TypistViewModel: ObservableObject {
         guard self.appState == nil else { return }
         self.appState = appState
 
-        permissionCancellable = appState.$isPermissionGranted
-            .filter { $0 }
-            .first()
-            .sink { [weak self] _ in
-                self?.startKeyMonitoring()
+        permissionTask = Task { [weak self] in
+            await self?.observePermission()
+        }
+    }
+
+    private func observePermission() async {
+        guard let appState else { return }
+        while !Task.isCancelled {
+            if appState.isPermissionGranted {
+                startKeyMonitoring()
+                return
             }
+            await withCheckedContinuation { c in
+                withObservationTracking {
+                    _ = appState.isPermissionGranted
+                } onChange: { c.resume() }
+            }
+        }
     }
 
     private func startKeyMonitoring() {
@@ -39,16 +50,29 @@ final class TypistViewModel: ObservableObject {
 
         appState.keyMonitor.startMonitoring()
 
-        holdingCancellable = appState.keyMonitor.$isHolding
-            .removeDuplicates()
-            .sink { [weak self] isHolding in
-                guard let self else { return }
-                if isHolding {
-                    self.startRecording()
-                } else if self.state == .recording {
-                    self.stopRecordingAndProcess()
-                }
+        holdingTask = Task { [weak self] in
+            await self?.observeKeyHolding()
+        }
+    }
+
+    private func observeKeyHolding() async {
+        guard let appState else { return }
+        var prev = appState.keyMonitor.isHolding
+        while !Task.isCancelled {
+            await withCheckedContinuation { c in
+                withObservationTracking {
+                    _ = appState.keyMonitor.isHolding
+                } onChange: { c.resume() }
             }
+            let now = appState.keyMonitor.isHolding
+            guard now != prev else { continue }
+            prev = now
+            if now {
+                startRecording()
+            } else if state == .recording {
+                stopRecordingAndProcess()
+            }
+        }
     }
 
     // MARK: - Recording
@@ -67,25 +91,35 @@ final class TypistViewModel: ObservableObject {
         recognizedText = ""
         cleanedText = ""
 
-        partialResultCancellable = appState.whisperService.$partialResult
-            .receive(on: RunLoop.main)
-            .sink { [weak self] text in
-                guard let self else { return }
-                if !text.isEmpty {
-                    self.recognizedText = text
-                    self.updateOverlay()
-                }
-            }
+        partialResultTask = Task { [weak self] in
+            await self?.observePartialResult()
+        }
 
         appState.whisperService.startRecording(coordinator: appState.coordinator)
         showOverlay()
     }
 
+    private func observePartialResult() async {
+        guard let appState else { return }
+        while !Task.isCancelled {
+            await withCheckedContinuation { c in
+                withObservationTracking {
+                    _ = appState.whisperService.partialResult
+                } onChange: { c.resume() }
+            }
+            let text = appState.whisperService.partialResult
+            if !text.isEmpty {
+                recognizedText = text
+                updateOverlay()
+            }
+        }
+    }
+
     private func stopRecordingAndProcess() {
         guard let appState else { return }
 
-        partialResultCancellable?.cancel()
-        partialResultCancellable = nil
+        partialResultTask?.cancel()
+        partialResultTask = nil
 
         state = .processing
         updateOverlay()

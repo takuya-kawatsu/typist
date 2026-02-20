@@ -33,10 +33,10 @@ struct LLMModelOption: Identifiable, Hashable {
     }
 }
 
-@MainActor
-final class LLMTextCleanupService: ObservableObject {
-    @Published var state: LLMModelState = .idle
-    @Published private(set) var currentModelId: String
+@Observable @MainActor
+final class LLMTextCleanupService {
+    var state: LLMModelState = .idle
+    private(set) var currentModelId: String
 
     var isReady: Bool { state == .ready }
 

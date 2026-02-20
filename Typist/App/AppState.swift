@@ -1,10 +1,10 @@
 import SwiftUI
 import AVFoundation
 
-@MainActor
-final class AppState: ObservableObject {
-    @Published var isPermissionGranted = false
-    @Published var permissionError: String?
+@Observable @MainActor
+final class AppState {
+    var isPermissionGranted = false
+    var permissionError: String?
 
     let coordinator = AudioSessionCoordinator()
     let keyMonitor = KeyMonitor()

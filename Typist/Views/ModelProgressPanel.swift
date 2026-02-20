@@ -1,24 +1,32 @@
 import Cocoa
 import SwiftUI
-import Combine
 
 @MainActor
 final class ModelProgressPanel {
     private var panel: NSPanel?
-    private var observations: Set<AnyCancellable> = []
+    private var observationTask: Task<Void, Never>?
 
     private let panelWidth: CGFloat = 340
     private let panelHeight: CGFloat = 120
 
     func observe(whisperModelManager: WhisperModelManager, llmService: LLMTextCleanupService) {
-        observations.removeAll()
+        observationTask?.cancel()
 
-        whisperModelManager.$state
-            .combineLatest(llmService.$state)
-            .sink { [weak self] whisperState, llmState in
-                self?.update(whisperState: whisperState, llmState: llmState)
+        observationTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                await withCheckedContinuation { c in
+                    withObservationTracking {
+                        _ = whisperModelManager.state
+                        _ = llmService.state
+                    } onChange: { c.resume() }
+                }
+                self.update(whisperState: whisperModelManager.state, llmState: llmService.state)
             }
-            .store(in: &observations)
+        }
+
+        // Also run an initial update immediately
+        update(whisperState: whisperModelManager.state, llmState: llmService.state)
     }
 
     private func update(whisperState: WhisperModelState, llmState: LLMModelState) {

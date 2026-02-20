@@ -8,9 +8,9 @@ enum WhisperModelState: Equatable {
     case error(String)
 }
 
-@MainActor
-final class WhisperModelManager: ObservableObject {
-    @Published var state: WhisperModelState = .idle
+@Observable @MainActor
+final class WhisperModelManager {
+    var state: WhisperModelState = .idle
 
     private static let modelURL = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin")!
     private static let modelFileName = "ggml-large-v3-turbo-q5_0.bin"

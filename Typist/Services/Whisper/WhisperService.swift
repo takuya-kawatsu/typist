@@ -1,10 +1,10 @@
 import Foundation
 import AVFoundation
 
-@MainActor
-final class WhisperService: ObservableObject {
-    @Published var partialResult: String = ""
-    @Published var isRecognizing: Bool = false
+@Observable @MainActor
+final class WhisperService {
+    var partialResult: String = ""
+    var isRecognizing: Bool = false
 
     private var whisperContext: WhisperContext?
     private let sampleBuffer = AudioSampleBuffer()

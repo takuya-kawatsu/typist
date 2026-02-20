@@ -2,14 +2,14 @@ import SwiftUI
 
 @main
 struct TypistApp: App {
-    @StateObject private var appState = AppState()
-    @StateObject private var viewModel = TypistViewModel()
+    @State private var appState = AppState()
+    @State private var viewModel = TypistViewModel()
 
     var body: some Scene {
         MenuBarExtra {
             MenuBarContent()
-                .environmentObject(appState)
-                .environmentObject(viewModel)
+                .environment(appState)
+                .environment(viewModel)
         } label: {
             Image(systemName: menuBarIcon)
                 .onAppear {
@@ -38,8 +38,8 @@ struct TypistApp: App {
 // MARK: - Menu Content
 
 struct MenuBarContent: View {
-    @EnvironmentObject var appState: AppState
-    @EnvironmentObject var viewModel: TypistViewModel
+    @Environment(AppState.self) var appState
+    @Environment(TypistViewModel.self) var viewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
