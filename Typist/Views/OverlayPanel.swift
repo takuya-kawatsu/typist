@@ -8,7 +8,7 @@ final class OverlayPanel {
 
     private var panel: NSPanel?
     private let panelWidth: CGFloat = 400
-    private let panelHeight: CGFloat = 60
+    private let compactHeight: CGFloat = 60
 
     func show(state: TypistState, text: String) {
         typistState = state
@@ -26,7 +26,7 @@ final class OverlayPanel {
         guard panel == nil else { return }
 
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
+            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: compactHeight),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -49,11 +49,25 @@ final class OverlayPanel {
     private func positionPanel() {
         guard let panel, let screen = NSScreen.main else { return }
 
+        let height = panelHeight
         let screenFrame = screen.visibleFrame
         let x = screenFrame.midX - panelWidth / 2
         let y = screenFrame.origin.y + 40  // 40pt from bottom
 
-        panel.setFrame(NSRect(x: x, y: y, width: panelWidth, height: panelHeight), display: true)
+        panel.setFrame(NSRect(x: x, y: y, width: panelWidth, height: height), display: true, animate: false)
+    }
+
+    /// Compact during recording/processing; taller for done to show full text.
+    private var panelHeight: CGFloat {
+        guard typistState == .done, !text.isEmpty else {
+            return compactHeight
+        }
+        // Estimate lines: ~22 Japanese chars or ~35 ASCII chars per line at 14pt in ~350pt width
+        let charsPerLine = 22
+        let lineCount = max(1, (text.count + charsPerLine - 1) / charsPerLine)
+        let clampedLines = min(lineCount, 8)
+        let textHeight = CGFloat(clampedLines) * 20  // ~20pt per line at font size 14
+        return max(compactHeight, textHeight + 40)    // 40pt for vertical padding + icon
     }
 }
 
@@ -62,16 +76,21 @@ final class OverlayPanel {
 private struct OverlayContent: View {
     var overlay: OverlayPanel
 
+    private var isStreaming: Bool {
+        overlay.typistState == .recording || overlay.typistState == .processing
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: iconName)
                 .font(.title2)
                 .foregroundStyle(iconColor)
-                .frame(width: 24)
+                .frame(width: 24, alignment: .center)
 
             Text(displayText)
                 .font(.system(size: 14))
-                .lineLimit(2)
+                .lineLimit(isStreaming ? 2 : 8)
+                .truncationMode(isStreaming ? .head : .tail)
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
