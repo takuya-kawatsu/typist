@@ -3,25 +3,28 @@ import SwiftUI
 @main
 struct TypistApp: App {
     @State private var appState = AppState()
-    @State private var viewModel = TypistViewModel()
+    @State private var viewModel: TypistViewModel?
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarContent()
-                .environment(appState)
-                .environment(viewModel)
+            if let viewModel {
+                MenuBarContent()
+                    .environment(appState)
+                    .environment(viewModel)
+            }
         } label: {
             Image(systemName: menuBarIcon)
-                .onAppear {
-                    // Runs once when the menu bar icon first appears (app launch).
-                    // LLM + Whisper loading and permission requests start in parallel.
-                    viewModel.bind(appState: appState)
-                    appState.bootstrap()
+                .task {
+                    if viewModel == nil {
+                        viewModel = TypistViewModel(appState: appState)
+                        appState.bootstrap()
+                    }
                 }
         }
     }
 
     private var menuBarIcon: String {
+        guard let viewModel else { return "keyboard" }
         switch viewModel.state {
         case .idle:
             return "keyboard"

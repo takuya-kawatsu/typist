@@ -1,8 +1,11 @@
 import AVFoundation
+import Synchronization
+import os
+
+private let logger = Logger(subsystem: "com.takuya.Typist", category: "AudioSampleBuffer")
 
 final class AudioSampleBuffer: @unchecked Sendable {
-    private let lock = NSLock()
-    private var samples: [Float] = []
+    private let samples = Mutex<[Float]>([])
     private var converter: AVAudioConverter?
     private let targetFormat: AVAudioFormat
 
@@ -20,21 +23,15 @@ final class AudioSampleBuffer: @unchecked Sendable {
         guard let floatData = converted.floatChannelData?[0] else { return }
         let count = Int(converted.frameLength)
 
-        lock.lock()
-        samples.append(contentsOf: UnsafeBufferPointer(start: floatData, count: count))
-        lock.unlock()
+        samples.withLock { $0.append(contentsOf: UnsafeBufferPointer(start: floatData, count: count)) }
     }
 
     func snapshot() -> [Float] {
-        lock.lock()
-        defer { lock.unlock() }
-        return samples
+        samples.withLock { Array($0) }
     }
 
     func reset() {
-        lock.lock()
-        samples.removeAll(keepingCapacity: true)
-        lock.unlock()
+        samples.withLock { $0.removeAll(keepingCapacity: true) }
     }
 
     private func resample(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
@@ -70,7 +67,7 @@ final class AudioSampleBuffer: @unchecked Sendable {
         }
 
         if let error {
-            print("[AudioSampleBuffer] Resample error: \(error)")
+            logger.error("Resample error: \(error)")
             return nil
         }
 

@@ -1,12 +1,14 @@
 import Foundation
 import whisper
+import os
+
+private let logger = Logger(subsystem: "com.takuya.Typist", category: "Whisper")
 
 /// whisper.cpp C API wrapper.
-/// All calls to `whisper_full()` are serialised on a dedicated serial queue
+/// All calls to `whisper_full()` are serialised by actor isolation
 /// so the underlying C context is never accessed concurrently.
-final class WhisperContext: @unchecked Sendable {
+actor WhisperContext {
     private var context: OpaquePointer
-    private let queue = DispatchQueue(label: "com.takuya.Typist.whisper", qos: .userInitiated)
 
     init(modelPath: String) throws {
         var params = whisper_context_default_params()
@@ -15,24 +17,15 @@ final class WhisperContext: @unchecked Sendable {
             throw WhisperError.failedToLoadModel(modelPath)
         }
         self.context = ctx
-        print("[Whisper] Model loaded: \(modelPath)")
+        logger.info("Model loaded: \(modelPath)")
     }
 
     deinit {
         whisper_free(context)
     }
 
-    /// Run inference on the serial queue, returning the result via async.
-    func infer(samples: [Float], language: String = "auto") async -> String {
-        await withCheckedContinuation { continuation in
-            queue.async { [self] in
-                let text = self.inferSync(samples: samples, language: language)
-                continuation.resume(returning: text)
-            }
-        }
-    }
-
-    private func inferSync(samples: [Float], language: String) -> String {
+    /// Run inference synchronously on the actor's serial executor.
+    func infer(samples: [Float], language: String = "auto") -> String {
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
         let threadCount = max(1, ProcessInfo.processInfo.activeProcessorCount - 2)
 
@@ -56,7 +49,7 @@ final class WhisperContext: @unchecked Sendable {
         let duration = Float(samples.count) / 16000.0
         var minVal: Float = 0, maxVal: Float = 0
         if let mi = samples.min(), let ma = samples.max() { minVal = mi; maxVal = ma }
-        print("[Whisper] Inference: \(samples.count) samples (\(String(format: "%.1f", duration))s), audio_ctx=\(params.audio_ctx), range [\(minVal), \(maxVal)]")
+        logger.info("Inference: \(samples.count) samples (\(String(format: "%.1f", duration))s), audio_ctx=\(params.audio_ctx), range [\(minVal), \(maxVal)]")
 
         let result: Int32 = language.withCString { langPtr in
             params.language = langPtr
@@ -66,7 +59,7 @@ final class WhisperContext: @unchecked Sendable {
         }
 
         guard result == 0 else {
-            print("[Whisper] Inference failed with code \(result)")
+            logger.error("Inference failed with code \(result)")
             return ""
         }
 
@@ -79,7 +72,7 @@ final class WhisperContext: @unchecked Sendable {
         }
 
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        print("[Whisper] Result: \(segmentCount) segments, text='\(trimmed)'")
+        logger.info("Result: \(segmentCount) segments, text='\(trimmed)'")
         return trimmed
     }
 }

@@ -1,4 +1,7 @@
 import AVFoundation
+import os
+
+private let logger = Logger(subsystem: "com.takuya.Typist", category: "Audio")
 
 enum AudioState: Sendable {
     case idle
@@ -13,7 +16,7 @@ final class AudioSessionCoordinator {
     private var currentTapInstalled = false
 
     /// Indirect tap handler — allows swapping the handler without removing/reinstalling the tap.
-    nonisolated(unsafe) var tapHandler: ((AVAudioPCMBuffer, AVAudioTime) -> Void)?
+    @ObservationIgnored nonisolated(unsafe) var tapHandler: ((AVAudioPCMBuffer, AVAudioTime) -> Void)?
 
     func transitionTo(_ newState: AudioState) {
         let oldState = state
@@ -32,7 +35,7 @@ final class AudioSessionCoordinator {
 
         let format = audioEngine.inputNode.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
-            print("[Audio] Invalid format: sampleRate=\(format.sampleRate), channels=\(format.channelCount)")
+            logger.error("Invalid format: sampleRate=\(format.sampleRate), channels=\(format.channelCount)")
             throw NSError(domain: "AudioSessionCoordinator", code: -1,
                           userInfo: [NSLocalizedDescriptionKey: "Invalid audio input format"])
         }

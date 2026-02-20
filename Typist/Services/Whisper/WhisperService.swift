@@ -1,5 +1,8 @@
 import Foundation
 import AVFoundation
+import os
+
+private let logger = Logger(subsystem: "com.takuya.Typist", category: "WhisperService")
 
 @Observable @MainActor
 final class WhisperService {
@@ -8,7 +11,7 @@ final class WhisperService {
 
     private var whisperContext: WhisperContext?
     private let sampleBuffer = AudioSampleBuffer()
-    private var periodicTimer: Timer?
+    private var periodicTask: Task<Void, Never>?
     private var inferenceTask: Task<Void, Never>?
     private weak var coordinator: AudioSessionCoordinator?
 
@@ -29,10 +32,10 @@ final class WhisperService {
                 try WhisperContext(modelPath: path)
             }.value
             modelManager.state = .ready(path: path)
-            print("[WhisperService] Model ready")
+            logger.info("Model ready")
         } catch {
             modelManager.state = .error(error.localizedDescription)
-            print("[WhisperService] Model load failed: \(error)")
+            logger.error("Model load failed: \(error)")
         }
     }
 
@@ -42,7 +45,7 @@ final class WhisperService {
 
     func startRecording(coordinator: AudioSessionCoordinator) {
         guard whisperContext != nil else {
-            print("[WhisperService] Model not loaded, cannot start recording")
+            logger.warning("Model not loaded, cannot start recording")
             return
         }
 
@@ -58,25 +61,26 @@ final class WhisperService {
                 self?.sampleBuffer.append(buffer)
             }
         } catch {
-            print("[WhisperService] Failed to install audio tap: \(error)")
+            logger.error("Failed to install audio tap: \(error)")
             isRecognizing = false
             return
         }
 
         // Start periodic inference every 3 seconds for live partial results
-        periodicTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                self.runPeriodicInference()
+        periodicTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { break }
+                self?.runPeriodicInference()
             }
         }
 
-        print("[WhisperService] Recording started")
+        logger.info("Recording started")
     }
 
     func stopRecording() async -> String {
-        periodicTimer?.invalidate()
-        periodicTimer = nil
+        periodicTask?.cancel()
+        periodicTask = nil
 
         // Wait for any in-flight periodic inference to complete
         if let task = inferenceTask {
@@ -94,7 +98,7 @@ final class WhisperService {
         isRecognizing = false
         partialResult = ""
 
-        print("[WhisperService] Recording stopped, final: '\(finalText)'")
+        logger.info("Recording stopped, final: '\(finalText)'")
         return finalText
     }
 

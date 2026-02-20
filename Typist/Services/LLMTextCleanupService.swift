@@ -2,6 +2,9 @@ import Foundation
 import MLX
 import MLXLLM
 import MLXLMCommon
+import os
+
+private let logger = Logger(subsystem: "com.takuya.Typist", category: "LLM")
 
 enum LLMModelState: Equatable {
     case idle
@@ -93,7 +96,7 @@ final class LLMTextCleanupService {
                 configuration: configuration
             ) { [weak self] progress in
                 let fraction = progress.fractionCompleted
-                print("[LLM] Download progress: \(String(format: "%.1f", fraction * 100))%")
+                logger.info("Download progress: \(String(format: "%.1f", fraction * 100))%")
                 Task { @MainActor in
                     guard let self, fraction < 1.0 else { return }
                     switch self.state {
@@ -106,7 +109,7 @@ final class LLMTextCleanupService {
             }
 
             state = .loading
-            print("[LLM] Creating ChatSession for \(configuration.name)...")
+            logger.info("Creating ChatSession for \(configuration.name)...")
 
             session = ChatSession(
                 container,
@@ -118,7 +121,7 @@ final class LLMTextCleanupService {
             )
 
             state = .ready
-            print("[LLM] Model ready: \(configuration.name)")
+            logger.info("Model ready: \(configuration.name)")
         } catch {
             state = .error(error.localizedDescription)
         }

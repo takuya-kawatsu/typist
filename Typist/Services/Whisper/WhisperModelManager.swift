@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.takuya.Typist", category: "WhisperModel")
 
 enum WhisperModelState: Equatable {
     case idle
@@ -33,14 +36,14 @@ final class WhisperModelManager {
         let path = Self.modelPath
 
         if FileManager.default.fileExists(atPath: path.path) {
-            print("[WhisperModel] Model found at cache: \(path.path)")
+            logger.info("Model found at cache: \(path.path)")
             return path.path
         }
 
         try FileManager.default.createDirectory(at: Self.cacheDirectory, withIntermediateDirectories: true)
 
         state = .downloading(progress: 0)
-        print("[WhisperModel] Downloading model...")
+        logger.info("Downloading model...")
 
         let localURL = try await download(from: Self.modelURL, to: path)
         return localURL.path
@@ -69,7 +72,7 @@ final class WhisperModelManager {
         }
         try FileManager.default.moveItem(at: tempURL, to: destination)
 
-        print("[WhisperModel] Download complete: \(destination.path)")
+        logger.info("Download complete: \(destination.path)")
         return destination
     }
 }

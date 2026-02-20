@@ -1,53 +1,51 @@
 import Cocoa
 import SwiftUI
 
+@Observable @MainActor
 final class OverlayPanel {
+    var typistState: TypistState = .idle
+    var text: String = ""
+
     private var panel: NSPanel?
     private let panelWidth: CGFloat = 400
     private let panelHeight: CGFloat = 60
 
-    @MainActor
     func show(state: TypistState, text: String) {
-        if panel == nil {
-            createPanel()
-        }
-
-        guard let panel else { return }
-
-        let hostingView = NSHostingView(rootView: OverlayContent(state: state, text: text))
-        hostingView.frame = panel.contentView?.bounds ?? .zero
-        hostingView.autoresizingMask = [.width, .height]
-        panel.contentView?.subviews.forEach { $0.removeFromSuperview() }
-        panel.contentView?.addSubview(hostingView)
-
+        typistState = state
+        self.text = text
+        ensurePanel()
         positionPanel()
-        panel.orderFrontRegardless()
+        panel?.orderFrontRegardless()
     }
 
-    @MainActor
     func hide() {
         panel?.orderOut(nil)
     }
 
-    @MainActor
-    private func createPanel() {
-        let panel = NSPanel(
+    private func ensurePanel() {
+        guard panel == nil else { return }
+
+        let p = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
         )
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.hidesOnDeactivate = false
+        p.level = .floating
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.hidesOnDeactivate = false
 
-        self.panel = panel
+        let hostingView = NSHostingView(rootView: OverlayContent(overlay: self))
+        hostingView.frame = p.contentView?.bounds ?? .zero
+        hostingView.autoresizingMask = [.width, .height]
+        p.contentView?.addSubview(hostingView)
+
+        panel = p
     }
 
-    @MainActor
     private func positionPanel() {
         guard let panel, let screen = NSScreen.main else { return }
 
@@ -62,8 +60,7 @@ final class OverlayPanel {
 // MARK: - SwiftUI Overlay Content
 
 private struct OverlayContent: View {
-    let state: TypistState
-    let text: String
+    var overlay: OverlayPanel
 
     var body: some View {
         HStack(spacing: 10) {
@@ -88,7 +85,7 @@ private struct OverlayContent: View {
     }
 
     private var iconName: String {
-        switch state {
+        switch overlay.typistState {
         case .idle: return "keyboard"
         case .recording: return "mic.fill"
         case .processing: return "brain"
@@ -97,7 +94,7 @@ private struct OverlayContent: View {
     }
 
     private var iconColor: Color {
-        switch state {
+        switch overlay.typistState {
         case .idle: return .white
         case .recording: return .red
         case .processing: return .orange
@@ -110,14 +107,14 @@ private struct OverlayContent: View {
     }
 
     private var displayText: String {
-        if text.isEmpty {
-            switch state {
+        if overlay.text.isEmpty {
+            switch overlay.typistState {
             case .idle: return ""
             case .recording: return "Listening..."
             case .processing: return "Processing..."
             case .done: return "Done"
             }
         }
-        return text
+        return overlay.text
     }
 }

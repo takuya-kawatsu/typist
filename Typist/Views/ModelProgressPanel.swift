@@ -1,8 +1,10 @@
 import Cocoa
 import SwiftUI
 
-@MainActor
+@Observable @MainActor
 final class ModelProgressPanel {
+    var phases: [ModelProgressPhase] = []
+
     private var panel: NSPanel?
     private var observationTask: Task<Void, Never>?
 
@@ -11,6 +13,9 @@ final class ModelProgressPanel {
 
     func observe(whisperModelManager: WhisperModelManager, llmService: LLMTextCleanupService) {
         observationTask?.cancel()
+
+        // Initial update
+        updatePhases(whisperState: whisperModelManager.state, llmState: llmService.state)
 
         observationTask = Task { [weak self] in
             guard let self else { return }
@@ -21,24 +26,22 @@ final class ModelProgressPanel {
                         _ = llmService.state
                     } onChange: { c.resume() }
                 }
-                self.update(whisperState: whisperModelManager.state, llmState: llmService.state)
+                self.updatePhases(whisperState: whisperModelManager.state, llmState: llmService.state)
             }
         }
-
-        // Also run an initial update immediately
-        update(whisperState: whisperModelManager.state, llmState: llmService.state)
     }
 
-    private func update(whisperState: WhisperModelState, llmState: LLMModelState) {
+    private func updatePhases(whisperState: WhisperModelState, llmState: LLMModelState) {
         let whisperPhase = phase(from: whisperState, label: "Whisper")
         let llmPhase = phase(from: llmState, label: "LLM")
+        phases = [whisperPhase, llmPhase].compactMap { $0 }
 
-        let activePhases = [whisperPhase, llmPhase].compactMap { $0 }
-
-        if activePhases.isEmpty {
+        if phases.isEmpty {
             hide()
         } else {
-            show(phases: activePhases)
+            ensurePanel()
+            positionPanel()
+            panel?.orderFrontRegardless()
         }
     }
 
@@ -64,44 +67,35 @@ final class ModelProgressPanel {
         }
     }
 
-    private func show(phases: [ModelProgressPhase]) {
-        if panel == nil {
-            createPanel()
-        }
-        guard let panel else { return }
+    private func ensurePanel() {
+        guard panel == nil else { return }
 
-        let hostingView = NSHostingView(rootView: ModelProgressContent(phases: phases))
-        hostingView.frame = panel.contentView?.bounds ?? .zero
-        hostingView.autoresizingMask = [.width, .height]
-        panel.contentView?.subviews.forEach { $0.removeFromSuperview() }
-        panel.contentView?.addSubview(hostingView)
-
-        positionPanel()
-        panel.orderFrontRegardless()
-    }
-
-    private func hide() {
-        panel?.orderOut(nil)
-        panel = nil
-    }
-
-    private func createPanel() {
-        let panel = NSPanel(
+        let p = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
             styleMask: [.titled, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isOpaque = false
-        panel.backgroundColor = .windowBackgroundColor
-        panel.hasShadow = true
-        panel.hidesOnDeactivate = false
-        panel.title = "Typist"
-        panel.isMovableByWindowBackground = true
+        p.level = .floating
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        p.isOpaque = false
+        p.backgroundColor = .windowBackgroundColor
+        p.hasShadow = true
+        p.hidesOnDeactivate = false
+        p.title = "Typist"
+        p.isMovableByWindowBackground = true
 
-        self.panel = panel
+        let hostingView = NSHostingView(rootView: ModelProgressContent(model: self))
+        hostingView.frame = p.contentView?.bounds ?? .zero
+        hostingView.autoresizingMask = [.width, .height]
+        p.contentView?.addSubview(hostingView)
+
+        panel = p
+    }
+
+    private func hide() {
+        panel?.orderOut(nil)
+        panel = nil
     }
 
     private func positionPanel() {
@@ -132,11 +126,11 @@ enum ModelProgressPhase: Identifiable {
 // MARK: - SwiftUI Content
 
 private struct ModelProgressContent: View {
-    let phases: [ModelProgressPhase]
+    var model: ModelProgressPanel
 
     var body: some View {
         VStack(spacing: 12) {
-            ForEach(phases) { phase in
+            ForEach(model.phases) { phase in
                 HStack(spacing: 8) {
                     Image(systemName: iconName(for: phase))
                         .foregroundStyle(.secondary)

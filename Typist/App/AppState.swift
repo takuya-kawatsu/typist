@@ -25,6 +25,7 @@ final class AppState {
         Task { await whisperService.loadModel() }
 
         // Permissions — runs in parallel with model loading
+        textInsertion.startAccessibilityPolling()
         Task { await requestPermissions() }
     }
 

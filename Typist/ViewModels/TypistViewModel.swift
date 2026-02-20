@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.takuya.Typist", category: "Typist")
 
 enum TypistState {
     case idle
@@ -13,25 +16,21 @@ final class TypistViewModel {
     var recognizedText: String = ""
     var cleanedText: String = ""
 
-    private var appState: AppState?
+    private let appState: AppState
     private var permissionTask: Task<Void, Never>?
     private var holdingTask: Task<Void, Never>?
     private var partialResultTask: Task<Void, Never>?
     private var dismissTask: Task<Void, Never>?
     private var overlayPanel: OverlayPanel?
 
-    /// Bind to AppState — starts key monitoring as soon as permissions are granted.
-    func bind(appState: AppState) {
-        guard self.appState == nil else { return }
+    init(appState: AppState) {
         self.appState = appState
-
         permissionTask = Task { [weak self] in
             await self?.observePermission()
         }
     }
 
     private func observePermission() async {
-        guard let appState else { return }
         while !Task.isCancelled {
             if appState.isPermissionGranted {
                 startKeyMonitoring()
@@ -46,8 +45,6 @@ final class TypistViewModel {
     }
 
     private func startKeyMonitoring() {
-        guard let appState else { return }
-
         appState.keyMonitor.startMonitoring()
 
         holdingTask = Task { [weak self] in
@@ -56,7 +53,6 @@ final class TypistViewModel {
     }
 
     private func observeKeyHolding() async {
-        guard let appState else { return }
         var prev = appState.keyMonitor.isHolding
         while !Task.isCancelled {
             await withCheckedContinuation { c in
@@ -78,9 +74,9 @@ final class TypistViewModel {
     // MARK: - Recording
 
     private func startRecording() {
-        guard let appState, state == .idle || state == .done else { return }
+        guard state == .idle || state == .done else { return }
         guard appState.whisperService.isModelLoaded else {
-            print("[Typist] Whisper model not loaded yet")
+            logger.warning("Whisper model not loaded yet")
             return
         }
 
@@ -100,7 +96,6 @@ final class TypistViewModel {
     }
 
     private func observePartialResult() async {
-        guard let appState else { return }
         while !Task.isCancelled {
             await withCheckedContinuation { c in
                 withObservationTracking {
@@ -116,8 +111,6 @@ final class TypistViewModel {
     }
 
     private func stopRecordingAndProcess() {
-        guard let appState else { return }
-
         partialResultTask?.cancel()
         partialResultTask = nil
 
@@ -127,10 +120,10 @@ final class TypistViewModel {
         Task {
             let recognized = await appState.whisperService.stopRecording()
 
-            print("[Typist] Recognized: '\(recognized)'")
+            logger.info("Recognized: '\(recognized)'")
 
             guard !recognized.isEmpty else {
-                print("[Typist] No text recognized, returning to idle")
+                logger.info("No text recognized, returning to idle")
                 state = .idle
                 hideOverlay()
                 return
@@ -143,13 +136,13 @@ final class TypistViewModel {
             if appState.llmService.isReady {
                 do {
                     finalText = try await appState.llmService.cleanupText(recognized)
-                    print("[Typist] Cleaned: '\(finalText)'")
+                    logger.info("Cleaned: '\(finalText)'")
                 } catch {
-                    print("[Typist] LLM cleanup error: \(error), using raw text")
+                    logger.error("LLM cleanup error: \(error), using raw text")
                     finalText = recognized
                 }
             } else {
-                print("[Typist] LLM not ready, using raw text")
+                logger.info("LLM not ready, using raw text")
                 finalText = recognized
             }
 

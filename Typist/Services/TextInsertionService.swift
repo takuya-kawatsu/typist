@@ -1,11 +1,26 @@
 import Cocoa
+import os
 
-@MainActor
+private let logger = Logger(subsystem: "com.takuya.Typist", category: "TextInsertion")
+
+@Observable @MainActor
 final class TextInsertionService {
 
-    /// Check if accessibility permission is granted.
-    var isAccessibilityGranted: Bool {
-        AXIsProcessTrusted()
+    /// Whether accessibility permission is granted (polled periodically).
+    private(set) var isAccessibilityGranted = AXIsProcessTrusted()
+
+    /// Start periodic polling for accessibility permission changes.
+    func startAccessibilityPolling() {
+        Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                let granted = AXIsProcessTrusted()
+                if granted != isAccessibilityGranted {
+                    isAccessibilityGranted = granted
+                    logger.info("Accessibility permission changed: \(granted)")
+                }
+            }
+        }
     }
 
     /// Prompt the user for accessibility permission (shows system dialog).
@@ -18,16 +33,16 @@ final class TextInsertionService {
     /// Primary: clipboard + Cmd+V (most reliable across apps).
     /// Fallback: clipboard copy only (when no accessibility).
     func insertText(_ text: String) {
-        print("[Insert] Accessibility: \(isAccessibilityGranted)")
+        logger.debug("Accessibility: \(self.isAccessibilityGranted)")
 
         if isAccessibilityGranted {
-            print("[Insert] Using clipboard + Cmd+V")
+            logger.debug("Using clipboard + Cmd+V")
             insertViaClipboard(text)
             return
         }
 
         // No accessibility — just copy to clipboard (CGEvent won't work either)
-        print("[Insert] No accessibility, copying to clipboard only")
+        logger.debug("No accessibility, copying to clipboard only")
         copyToClipboard(text)
     }
 
@@ -38,7 +53,7 @@ final class TextInsertionService {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-        print("[Insert] Copied to clipboard — press Cmd+V to paste")
+        logger.info("Copied to clipboard — press Cmd+V to paste")
     }
 
     /// Copy text to clipboard and simulate Cmd+V (requires accessibility).
@@ -49,17 +64,16 @@ final class TextInsertionService {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        // Small delay to ensure clipboard is set before paste
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            self.simulateCmdV()
-            print("[Insert] Cmd+V simulated")
+        Task {
+            try? await Task.sleep(for: .milliseconds(50))
+            simulateCmdV()
+            logger.debug("Cmd+V simulated")
 
             // Restore previous clipboard after paste completes
             if let previous = previousContents {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    pasteboard.clearContents()
-                    pasteboard.setString(previous, forType: .string)
-                }
+                try? await Task.sleep(for: .milliseconds(500))
+                pasteboard.clearContents()
+                pasteboard.setString(previous, forType: .string)
             }
         }
     }
