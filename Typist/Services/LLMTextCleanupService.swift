@@ -4,7 +4,7 @@ import MLXLLM
 import MLXLMCommon
 import os
 
-private let logger = Logger(subsystem: "com.takuya.Typist", category: "LLM")
+private let logger = Logger(subsystem: "jp.kw2.Typist", category: "LLM")
 
 enum LLMModelState: Equatable {
     case idle

@@ -2,7 +2,7 @@ import Foundation
 import whisper
 import os
 
-private let logger = Logger(subsystem: "com.takuya.Typist", category: "Whisper")
+private let logger = Logger(subsystem: "jp.kw2.Typist", category: "Whisper")
 
 /// whisper.cpp C API wrapper.
 /// All calls to `whisper_full()` are serialised by actor isolation

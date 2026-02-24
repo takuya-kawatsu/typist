@@ -1,7 +1,7 @@
 import SwiftUI
 import os
 
-private let logger = Logger(subsystem: "com.takuya.Typist", category: "Typist")
+private let logger = Logger(subsystem: "jp.kw2.Typist", category: "Typist")
 
 enum TypistState {
     case idle

@@ -1,7 +1,7 @@
 import Cocoa
 import os
 
-private let logger = Logger(subsystem: "com.takuya.Typist", category: "TextInsertion")
+private let logger = Logger(subsystem: "jp.kw2.Typist", category: "TextInsertion")
 
 @Observable @MainActor
 final class TextInsertionService {

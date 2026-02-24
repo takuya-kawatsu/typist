@@ -2,7 +2,7 @@ import AVFoundation
 import Synchronization
 import os
 
-private let logger = Logger(subsystem: "com.takuya.Typist", category: "AudioSampleBuffer")
+private let logger = Logger(subsystem: "jp.kw2.Typist", category: "AudioSampleBuffer")
 
 final class AudioSampleBuffer: @unchecked Sendable {
     private let samples = Mutex<[Float]>([])

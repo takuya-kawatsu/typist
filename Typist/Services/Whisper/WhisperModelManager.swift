@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-private let logger = Logger(subsystem: "com.takuya.Typist", category: "WhisperModel")
+private let logger = Logger(subsystem: "jp.kw2.Typist", category: "WhisperModel")
 
 enum WhisperModelState: Equatable {
     case idle

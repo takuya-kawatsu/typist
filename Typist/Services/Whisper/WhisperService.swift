@@ -2,7 +2,7 @@ import Foundation
 import AVFoundation
 import os
 
-private let logger = Logger(subsystem: "com.takuya.Typist", category: "WhisperService")
+private let logger = Logger(subsystem: "jp.kw2.Typist", category: "WhisperService")
 
 @Observable @MainActor
 final class WhisperService {

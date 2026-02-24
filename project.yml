@@ -1,6 +1,6 @@
 name: Typist
 options:
-  bundleIdPrefix: com.takuya
+  bundleIdPrefix: jp.kw2
   deploymentTarget:
     macOS: "15.0"
   xcodeVersion: "16.0"
@@ -36,7 +36,7 @@ targets:
         com.apple.security.app-sandbox: false
         com.apple.security.device.audio-input: true
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.takuya.Typist
+      PRODUCT_BUNDLE_IDENTIFIER: jp.kw2.Typist
       INFOPLIST_FILE: Typist/Resources/Info.plist
       CODE_SIGN_ENTITLEMENTS: Typist/Resources/Typist.entitlements
       ENABLE_HARDENED_RUNTIME: true

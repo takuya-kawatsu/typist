@@ -1,7 +1,7 @@
 import AVFoundation
 import os
 
-private let logger = Logger(subsystem: "com.takuya.Typist", category: "Audio")
+private let logger = Logger(subsystem: "jp.kw2.Typist", category: "Audio")
 
 enum AudioState: Sendable {
     case idle
