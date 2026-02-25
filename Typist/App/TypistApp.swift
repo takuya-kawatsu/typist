@@ -72,6 +72,10 @@ struct MenuBarContent: View {
 
             Divider()
 
+            Text("Built at: \(buildDateString)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
@@ -94,6 +98,18 @@ struct MenuBarContent: View {
         case .error(let msg):
             Label("Whisper: Error - \(msg)", systemImage: "exclamation.triangle")
         }
+    }
+
+    private var buildDateString: String {
+        guard let executablePath = Bundle.main.executablePath,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: executablePath),
+              let creationDate = attributes[.creationDate] as? Date else {
+            return "Unknown"
+        }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: creationDate)
     }
 
     @ViewBuilder
