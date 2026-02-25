@@ -71,10 +71,17 @@ final class LLMTextCleanupService {
         4. 表記の正規化
            - 全角・半角の統一
            - 適切な句読点の挿入
+        5. ハルシネーション（幻覚）の除去
+           - 「ご視聴ありがとうございました」「チャンネル登録お願いします」など、Whisper特有の無音時に発生しやすい動画用の定型句が文末等に含まれている場合は、文脈から判断して削除する
 
         ## 変えないこと
         - 話者の意図・主張の内容
         - 語調（です/ます調 ↔ だ/である調）
+
+        ## 文脈（コンテキスト）の利用
+        直前の会話の文脈が <context> ブロックで与えられる場合があります。
+        この文脈は、同音異義語の選択や、前後の繋がりを自然にするための「参考情報」としてのみ使用してください。
+        絶対に出力に <context> の内容を含めないでください。出力は <input> の整形結果のみです。
 
         ## 例
 
@@ -150,14 +157,19 @@ final class LLMTextCleanupService {
         }
     }
 
-    func cleanupText(_ text: String) async throws -> String {
+    func cleanupText(_ text: String, context: String? = nil) async throws -> String {
         guard let session else {
             throw LLMCleanupError.modelNotReady
         }
 
         await session.clear()
 
-        let prompt = "/no_think\n<input>\n\(text)\n</input>"
+        var prompt = "/no_think\n"
+        if let context, !context.isEmpty {
+            prompt += "<context>\n\(context)\n</context>\n"
+        }
+        prompt += "<input>\n\(text)\n</input>"
+
         let response = try await session.respond(to: prompt)
 
         return stripThinkingBlock(response).trimmingCharacters(in: .whitespacesAndNewlines)

@@ -23,6 +23,9 @@ final class TypistViewModel {
     private var dismissTask: Task<Void, Never>?
     private var overlayPanel: OverlayPanel?
 
+    private var dictationHistory: [String] = []
+    private var lastDictationTime: Date? = nil
+
     init(appState: AppState) {
         self.appState = appState
         permissionTask = Task { [weak self] in
@@ -133,9 +136,15 @@ final class TypistViewModel {
             updateOverlay()
 
             let finalText: String
+
+            if let lastTime = self.lastDictationTime, Date().timeIntervalSince(lastTime) > 180 {
+                self.dictationHistory.removeAll()
+            }
+
             if appState.llmService.isReady {
                 do {
-                    finalText = try await appState.llmService.cleanupText(recognized)
+                    let context = self.dictationHistory.isEmpty ? nil : self.dictationHistory.joined(separator: "\n")
+                    finalText = try await appState.llmService.cleanupText(recognized, context: context)
                     logger.info("Cleaned: '\(finalText)'")
                 } catch {
                     logger.error("LLM cleanup error: \(error), using raw text")
@@ -145,6 +154,12 @@ final class TypistViewModel {
                 logger.info("LLM not ready, using raw text")
                 finalText = recognized
             }
+
+            self.dictationHistory.append(finalText)
+            if self.dictationHistory.count > 3 {
+                self.dictationHistory.removeFirst()
+            }
+            self.lastDictationTime = Date()
 
             cleanedText = finalText
             appState.textInsertion.insertText(finalText)
