@@ -141,7 +141,7 @@ final class TypistViewModel {
                 self.dictationHistory.removeAll()
             }
 
-            if appState.llmService.isReady {
+            if appState.llmService.isReady && appState.llmService.isEnabled {
                 do {
                     let context = self.dictationHistory.isEmpty ? nil : self.dictationHistory.joined(separator: "\n")
                     finalText = try await appState.llmService.cleanupText(recognized, context: context)

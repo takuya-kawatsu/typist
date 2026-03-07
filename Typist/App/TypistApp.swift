@@ -129,6 +129,11 @@ struct MenuBarContent: View {
             Label("LLM: Error - \(msg)", systemImage: "exclamation.triangle")
         }
 
+        Toggle("LLM Correction", isOn: Binding(
+            get: { appState.llmService.isEnabled },
+            set: { appState.llmService.isEnabled = $0 }
+        ))
+
         Menu("Model: \(currentLabel)") {
             ForEach(LLMModelOption.available) { option in
                 Button {
@@ -143,5 +148,6 @@ struct MenuBarContent: View {
                 .disabled(option.id == appState.llmService.currentModelId && appState.llmService.state == .ready)
             }
         }
+        .disabled(!appState.llmService.isEnabled)
     }
 }
